@@ -6,9 +6,19 @@ test('dropdown menu supports pointer and keyboard focus lifecycle', async ({ pag
   const parentEscapes = page.getByText(/Parent Escapes:/);
 
   await test.step('pointer interaction opens the menu', async () => {
+    await expect(menuTrigger).toHaveAttribute('aria-haspopup', 'menu');
+    await expect(menuTrigger).toHaveAttribute('aria-expanded', 'false');
     await expect(menuTrigger).toHaveAttribute('data-state', 'closed');
     await menuTrigger.click();
+    await expect(menuTrigger).toHaveAttribute('aria-expanded', 'true');
     await expect(menuTrigger).toHaveAttribute('data-state', 'open');
+
+    const triggerId = await menuTrigger.getAttribute('id');
+    expect(triggerId).not.toBeNull();
+    await expect(page.getByRole('menu', { name: 'Open Menu' })).toHaveAttribute(
+      'aria-labelledby',
+      triggerId!,
+    );
   });
 
   await test.step('keyboard navigation skips disabled items and selection restores focus', async () => {
@@ -21,6 +31,7 @@ test('dropdown menu supports pointer and keyboard focus lifecycle', async ({ pag
     await page.keyboard.press('ArrowDown');
     await expect(page.getByRole('menuitem', { name: 'Duplicate' })).toBeFocused();
     await page.keyboard.press('Enter');
+    await expect(menuTrigger).toHaveAttribute('aria-expanded', 'false');
     await expect(menuTrigger).toHaveAttribute('data-state', 'closed');
     await expect(menuTrigger).toBeFocused();
     await expect(page.getByText('Selected: Duplicate')).toBeVisible();

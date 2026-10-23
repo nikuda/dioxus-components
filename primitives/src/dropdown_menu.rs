@@ -359,8 +359,8 @@ pub fn DropdownMenuTrigger(props: DropdownMenuTriggerProps) -> Element {
         "data-state": data_state,
         "data-disabled": disabled,
         disabled: disabled,
-        aria_expanded: open,
-        aria_haspopup: "menu",
+        "aria-expanded": open,
+        "aria-haspopup": "menu",
         onmounted: move |e: MountedEvent| {
             ctx.trigger.set(Some(e.data()));
         },
@@ -477,7 +477,7 @@ pub fn DropdownMenuContent(props: DropdownMenuContentProps) -> Element {
             div { ..merge_primitive_attributes(attributes!(div {
                 id,
                 role: "menu",
-                aria_labelledby: "{ctx.trigger_id}",
+                "aria-labelledby": "{ctx.trigger_id}",
                 "data-state": if (ctx.open)() { "open" } else { "closed" },
                 onpointerdown: move |event| {
                     // The user is starting a click inside the dropdown menu.
@@ -652,6 +652,8 @@ mod tests {
         let html = dioxus_ssr::render(&dom);
 
         assert!(html.contains("aria-haspopup=\"menu\""), "{html}");
+        assert!(html.contains("aria-expanded=\"true\""), "{html}");
+        assert!(html.contains("aria-labelledby=\""), "{html}");
         assert_eq!(html.matches("role=\"menu\"").count(), 1, "{html}");
         assert_eq!(html.matches("role=\"menuitem\"").count(), 1, "{html}");
         assert_eq!(html.matches("role=\"menuitemradio\"").count(), 1, "{html}");
