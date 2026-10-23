@@ -3,6 +3,7 @@ import { test, expect } from '@playwright/test';
 test('dropdown menu supports pointer and keyboard focus lifecycle', async ({ page }) => {
   await page.goto('http://127.0.0.1:8080/component/?name=dropdown_menu&');
   const menuTrigger = page.getByRole('button', { name: 'Open Menu' });
+  const parentEscapes = page.getByText(/Parent Escapes:/);
 
   await test.step('pointer interaction opens the menu', async () => {
     await expect(menuTrigger).toHaveAttribute('data-state', 'closed');
@@ -35,6 +36,12 @@ test('dropdown menu supports pointer and keyboard focus lifecycle', async ({ pag
     await page.keyboard.press('Escape');
     await expect(menuTrigger).toHaveAttribute('data-state', 'closed');
     await expect(menuTrigger).toBeFocused();
+    await expect(parentEscapes).toHaveText('Parent Escapes: 0');
+  });
+
+  await test.step('Escape from a closed menu remains available to its parent', async () => {
+    await page.keyboard.press('Escape');
+    await expect(parentEscapes).toHaveText('Parent Escapes: 1');
   });
 
   await test.step('Enter opens a closed menu at its first enabled item', async () => {
@@ -56,7 +63,7 @@ test('dropdown menu supports pointer and keyboard focus lifecycle', async ({ pag
   await test.step('ArrowUp opens a closed menu at its last enabled item', async () => {
     await page.keyboard.press('ArrowUp');
     await expect(menuTrigger).toHaveAttribute('data-state', 'open');
-    await expect(page.getByRole('menuitem', { name: 'Delete' })).toBeFocused();
+    await expect(page.getByRole('menuitem', { name: 'Show details' })).toBeFocused();
     await page.keyboard.press('Escape');
     await expect(menuTrigger).toBeFocused();
   });
@@ -82,5 +89,35 @@ test('dropdown menu supports pointer and keyboard focus lifecycle', async ({ pag
     await expect(menuTrigger).toHaveAttribute('data-state', 'closed');
     await expect(menuTrigger).toBeFocused();
     await expect(page.getByText('Selected: Edit')).toBeVisible();
+  });
+
+  await test.step('a pointer action can open a focus-owning surface without menu interference', async () => {
+    await menuTrigger.click();
+    await page.getByRole('menuitem', { name: 'Show details' }).click();
+    await expect(menuTrigger).toHaveAttribute('data-state', 'closed');
+
+    const dialog = page.getByRole('dialog', { name: 'Action details' });
+    const closeDialog = dialog.getByRole('button', { name: 'Close dialog' });
+    await expect(dialog).toBeVisible();
+    await expect(closeDialog).toBeFocused();
+
+    await closeDialog.click();
+    await expect(dialog).toBeHidden();
+    await expect(menuTrigger).toBeFocused();
+  });
+
+  await test.step('a keyboard action has the same focus ownership', async () => {
+    await page.keyboard.press('ArrowUp');
+    await expect(page.getByRole('menuitem', { name: 'Show details' })).toBeFocused();
+    await page.keyboard.press('Enter');
+
+    const dialog = page.getByRole('dialog', { name: 'Action details' });
+    const closeDialog = dialog.getByRole('button', { name: 'Close dialog' });
+    await expect(dialog).toBeVisible();
+    await expect(closeDialog).toBeFocused();
+
+    await closeDialog.click();
+    await expect(dialog).toBeHidden();
+    await expect(menuTrigger).toBeFocused();
   });
 });

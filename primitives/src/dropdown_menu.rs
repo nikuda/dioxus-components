@@ -63,6 +63,28 @@ impl DropdownMenuContext {
         self.close_with_focus(true);
     }
 
+    fn close_for_selection(&mut self) {
+        self.initial_focus.set(None);
+        self.had_item_focus.set(false);
+        self.focus.blur();
+        self.restore_trigger_focus.set(false);
+
+        // Initiate trigger focus before consumer code can open another
+        // focus-owning surface. The supported renderers either apply focus
+        // immediately or submit the renderer query when set_focus is called;
+        // awaiting this future only observes completion.
+        if let Some(trigger) = self.trigger.peek().as_ref().cloned() {
+            let focus = trigger.set_focus(true);
+            spawn(async move {
+                let _ = focus.await;
+            });
+        }
+
+        // Calling set_open may invoke consumer code that unmounts this scope,
+        // so it must remain the last access to context-owned reactive state.
+        self.set_open.call(false);
+    }
+
     fn close_with_focus(&mut self, focus_trigger: bool) {
         self.initial_focus.set(None);
         self.had_item_focus.set(false);
@@ -226,7 +248,11 @@ pub fn DropdownMenu(props: DropdownMenuProps) -> Element {
                     ctx.open_and_focus(FocusPlacement::First);
                 }
             }
-            Key::Named(NamedKey::Escape) => ctx.close_and_focus(),
+            Key::Named(NamedKey::Escape) if open() => {
+                ctx.close_and_focus();
+                event.stop_propagation();
+            }
+            Key::Named(NamedKey::Escape) => return,
             Key::Named(NamedKey::ArrowDown) => {
                 if open() {
                     ctx.focus.focus_next();
@@ -481,7 +507,9 @@ pub struct DropdownMenuItemProps<T: Clone + PartialEq + 'static> {
     #[props(default)]
     pub disabled: ReadSignal<bool>,
 
-    /// The callback function that will be called when the item is selected. The value of the item will be passed as an argument.
+    /// Called when the item is selected, after the menu has issued trigger
+    /// focus and requested closure. The callback may move focus or open another
+    /// focus-owning surface; selection will not restore menu focus afterward.
     #[props(default)]
     pub on_select: Callback<T>,
 
@@ -558,7 +586,7 @@ pub fn DropdownMenuItem<T: Clone + PartialEq + 'static>(
                 e.stop_propagation();
                 if !disabled() {
                     let value = (props.value)();
-                    ctx.close_and_focus();
+                    ctx.close_for_selection();
                     props.on_select.call(value);
                 }
             },
@@ -567,7 +595,7 @@ pub fn DropdownMenuItem<T: Clone + PartialEq + 'static>(
                 if event.key() == Key::Named(NamedKey::Enter) || event.key() == Key::Character(" ".to_string()) {
                     if !disabled() {
                         let value = (props.value)();
-                        ctx.close_and_focus();
+                        ctx.close_for_selection();
                         props.on_select.call(value);
                     }
                     event.prevent_default();
